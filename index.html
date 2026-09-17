@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Demo portfolio</title>
+<style>
+  *,*::before,*::after{ box-sizing:border-box; margin:0; padding:0; }
+  :root{
+    --black:#000000; --dark:#080808; --dark2:#111111;
+    --accent:#C49A6C; --accent2:#D4AA7A; --white:#ffffff;
+  }
+  html{ scroll-behavior:smooth; }
+  body{ background:var(--black); color:var(--white); font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; overflow-x:hidden; }
+
+  /* ===== NAV ===== */
+  nav{ position:fixed; top:0; left:0; right:0; z-index:100; padding:28px 40px; display:flex; justify-content:space-between; align-items:center; transition:padding .3s, background .3s; }
+  nav.scrolled{ background:rgba(0,0,0,.93); backdrop-filter:blur(24px); padding:16px 40px; }
+  .nav-logo{ font-size:15px; font-weight:800; letter-spacing:.16em; text-transform:uppercase; color:#fff; text-decoration:none; }
+  .nav-logo-group{ display:flex; align-items:center; gap:14px; }
+  .lang-switcher{ display:flex; gap:8px; }
+  .lang-btn{ background:none; border:1px solid #333; color:var(--white); opacity:.4; cursor:pointer; font-size:11px; padding:3px 7px; transition:opacity .2s; }
+  .lang-btn.active{ opacity:1; border-color:var(--accent); color:var(--accent); }
+  .nav-links{ display:flex; gap:28px; list-style:none; }
+  .nav-links a{ color:rgba(255,255,255,.6); text-decoration:none; font-size:11px; letter-spacing:.2em; text-transform:uppercase; transition:color .2s; }
+  .nav-links a:hover{ color:#fff; }
+
+  /* ===== MENÚ HAMBURGUESA (mobile) ===== */
+  .nav-burger{ display:none; flex-direction:column; gap:5px; width:26px; background:none; border:none; cursor:pointer; padding:6px; z-index:110; }
+  .nav-burger span{ display:block; width:100%; height:1px; background:#fff; transition:transform .3s ease, opacity .3s ease; }
+  .nav-burger.open span:nth-child(1){ transform:translateY(6px) rotate(45deg); }
+  .nav-burger.open span:nth-child(2){ opacity:0; }
+  .nav-burger.open span:nth-child(3){ transform:translateY(-6px) rotate(-45deg); }
+
+  @media (max-width:800px){
+    .nav-burger{ display:flex; }
+    .nav-links{
+      display:flex; flex-direction:column; gap:0; list-style:none;
+      position:fixed; top:0; right:0; height:100vh; width:min(78vw,320px);
+      background:rgba(8,8,8,.98); backdrop-filter:blur(20px);
+      padding:100px 36px 40px; z-index:105;
+      transform:translateX(100%); transition:transform .4s cubic-bezier(.22,1,.36,1);
+    }
+    .nav-links.open{ transform:translateX(0); }
+    .nav-links a{ display:block; padding:16px 0; font-size:13px; border-bottom:1px solid rgba(255,255,255,.08); }
+    .nav-scrim{ position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:104; opacity:0; pointer-events:none; transition:opacity .3s ease; }
+    .nav-scrim.open{ opacity:1; pointer-events:auto; }
+  }
+  @media (max-width:480px){
+    nav{ padding:20px 20px; }
+    nav.scrolled{ padding:14px 20px; }
+    .nav-logo{ font-size:13px; }
+    .lang-btn{ font-size:10px; padding:2px 6px; }
+  }
+
+  /* ===== HERO SCRUBBEADO POR SCROLL =====
+     El truco: un contenedor de 220vh de alto, con el .hero
+     "pegado" (sticky) arriba. Mientras se recorren esas 1.2
+     pantallas extra de scroll, el hero no se mueve visualmente,
+     pero el JS usa ese progreso de scroll para mover el video
+     frame a frame (ver JS: scrubVideo). */
+  .hero-scroll-container{ position:relative; height:220vh; }
+  .hero{ height:100vh; height:100svh; position:sticky; top:0; overflow:hidden; display:flex; align-items:flex-end; padding:70px 40px; background:#000; }
+  .hero-bg{ position:absolute; inset:0; z-index:0; width:100%; height:100%; object-fit:cover; background:#000; }
+  .hero-bg-fallback{ position:absolute; inset:0; z-index:0; background:
+      radial-gradient(circle at 30% 20%, #201a10, transparent 55%),
+      linear-gradient(160deg,#141210,#000);
+  }
+  .hero-overlay{ position:absolute; inset:0; z-index:1; background:linear-gradient(to bottom, rgba(0,0,0,.25) 0%, rgba(0,0,0,.18) 35%, rgba(0,0,0,.88) 100%); }
+  .hero-content{ position:relative; z-index:2; width:100%; }
+  .hero-top-row{ display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid rgba(255,255,255,.18);
+    opacity:0; transform:translateY(16px); transition:opacity .9s ease .2s, transform .9s ease .2s; }
+  .hero-label{ font-size:11px; letter-spacing:.35em; text-transform:uppercase; color:var(--accent); }
+  .hero-location{ font-size:11px; letter-spacing:.25em; text-transform:uppercase; color:rgba(255,255,255,.4); }
+  .hero-title{ font-size:clamp(48px,9vw,120px); font-weight:900; line-height:.92; letter-spacing:-.04em; text-transform:uppercase;
+    opacity:0; transform:translateY(30px); transition:opacity 1s ease .35s, transform 1s ease .35s; }
+  .hero.loaded .hero-top-row, .hero.loaded .hero-title{ opacity:1; transform:none; }
+  .scroll-indicator{ position:absolute; bottom:36px; right:40px; z-index:2; display:flex; flex-direction:column; align-items:center; gap:10px; font-size:10px; letter-spacing:.25em; text-transform:uppercase; color:rgba(255,255,255,.35); }
+  .scroll-line{ width:1px; height:56px; background:linear-gradient(to bottom, rgba(255,255,255,.45), transparent); animation:scrollLine 2.2s ease-in-out infinite; }
+  @keyframes scrollLine{ 0%{transform:scaleY(0);transform-origin:top;} 49%{transform:scaleY(1);transform-origin:top;} 50%{transform:scaleY(1);transform-origin:bottom;} 100%{transform:scaleY(0);transform-origin:bottom;} }
+
+  section{ padding:100px 40px; max-width:1200px; margin:0 auto; }
+  .section-label{ font-size:10px; letter-spacing:.35em; text-transform:uppercase; color:var(--accent); margin-bottom:16px; }
+  .section-title{ font-size:clamp(36px,5vw,64px); font-weight:900; letter-spacing:-.03em; text-transform:uppercase; line-height:1; }
+
+  /* ===== REVEAL BASE ===== */
+  .reveal{ opacity:0; transform:translateY(36px); transition:opacity .85s ease, transform .85s ease; }
+  .reveal.visible{ opacity:1; transform:none; }
+  .reveal-d1{ transition-delay:.12s; } .reveal-d2{ transition-delay:.24s; } .reveal-d3{ transition-delay:.36s; }
+
+  /* ===== ABOUT: wipe+slide en la foto, cascada inclinada en el texto ===== */
+  .about{ display:grid; grid-template-columns:1fr 1.1fr; gap:70px; align-items:center; background:var(--dark2); max-width:none; }
+  .about-image{ position:relative; aspect-ratio:2/3; overflow:hidden; background:linear-gradient(150deg,#221c14,#050505); }
+  .about-image.reveal{ opacity:0; transform:translateX(-160px) scale(1.3) rotate(-11deg); clip-path:inset(0 55% 0 0);
+    transition:opacity 1.1s cubic-bezier(.22,1,.36,1), transform 1.1s cubic-bezier(.22,1,.36,1), clip-path 1.1s cubic-bezier(.22,1,.36,1); }
+  .about-image.reveal.visible{ opacity:1; transform:none; clip-path:inset(0 0 0 0); }
+  .about-copy > .reveal{ opacity:0; transform:translateX(110px) skewX(-13deg); transition:opacity .9s cubic-bezier(.22,1,.36,1), transform .9s cubic-bezier(.22,1,.36,1); }
+  .about-copy > .reveal.visible{ opacity:1; transform:none; }
+  .about-copy > .reveal:nth-child(2){ transition-delay:.12s; }
+  .about-copy > .reveal:nth-child(3){ transition-delay:.24s; }
+  .about-title{ font-size:clamp(34px,4.2vw,56px); font-weight:900; line-height:1.05; text-transform:uppercase; margin-bottom:26px; }
+  .about-text{ font-size:15px; line-height:1.85; color:rgba(255,255,255,.6); margin-bottom:16px; }
+  @media (max-width:800px){ .about{ grid-template-columns:1fr; } }
+
+  /* ===== EVENTOS: pop-in con blur, alternando rotación ===== */
+  .eventos-grid{ display:grid; grid-template-columns:repeat(6,1fr); gap:14px; margin-top:56px; }
+  .evento-flyer{ aspect-ratio:9/16; overflow:hidden; background:linear-gradient(150deg,#231c12,#050505); }
+  .eventos-grid .evento-flyer.reveal{ opacity:0; transform:translateY(70px) scale(.75) rotate(-10deg); filter:blur(8px);
+    transition:opacity 1.3s cubic-bezier(.34,1.56,.64,1), transform 1.3s cubic-bezier(.34,1.56,.64,1), filter .9s ease; }
+  .eventos-grid .evento-flyer:nth-child(even).reveal{ transform:translateY(70px) scale(.75) rotate(10deg); }
+  .eventos-grid .evento-flyer.reveal.visible{ opacity:1; transform:none; filter:blur(0); }
+  @media (max-width:800px){ .eventos-grid{ grid-template-columns:repeat(3,1fr); } }
+
+  /* ===== GALERÍA: masonry con columns, sin JS de layout ===== */
+  .gallery-grid{ columns:3; column-gap:10px; margin-top:56px; }
+  .gallery-item{ break-inside:avoid; margin-bottom:10px; position:relative; overflow:hidden; cursor:pointer; background:var(--dark2); }
+  .gallery-item:nth-child(4n+1){ aspect-ratio:4/3; } .gallery-item:nth-child(4n+2){ aspect-ratio:3/4; }
+  .gallery-item:nth-child(4n+3){ aspect-ratio:16/9; } .gallery-item:nth-child(4n+0){ aspect-ratio:1/1; }
+  .gallery-item .fill{ position:absolute; inset:0; transition:transform .7s cubic-bezier(.25,.46,.45,.94); background:linear-gradient(150deg,#241d14,#0a0a0a); }
+  .gallery-item:hover .fill{ transform:scale(1.06); }
+  .gallery-overlay{ position:absolute; inset:0; display:flex; align-items:flex-end; padding:16px; background:linear-gradient(to top, rgba(0,0,0,.78), transparent 55%); opacity:0; transition:opacity .4s; font-size:12px; text-transform:uppercase; letter-spacing:.06em; }
+  .gallery-item:hover .gallery-overlay{ opacity:1; }
+  @media (max-width:800px){ .gallery-grid{ columns:2; } }
+
+  /* ===== SETS: tarjetas con "flip" 3D de entrada ===== */
+  .sets-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-top:56px; perspective:1400px; }
+  .sets-grid .set-card.reveal{ opacity:0; transform:translateY(60px) rotateX(-45deg); transform-origin:bottom center;
+    transition:opacity 1.2s cubic-bezier(.22,1,.36,1), transform 1.2s cubic-bezier(.22,1,.36,1); }
+  .sets-grid .set-card.reveal.visible{ opacity:1; transform:none; }
+  .set-card{ display:block; background:var(--dark2); overflow:hidden; text-decoration:none; color:#fff; }
+  .set-thumb{ aspect-ratio:16/9; position:relative; background:linear-gradient(150deg,#241a10,#0a0a0a); }
+  .set-thumb .play{ position:absolute; inset:0; margin:auto; width:48px; height:48px; border-radius:50%; border:1px solid rgba(255,255,255,.3); display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity .3s; }
+  .set-card:hover .play{ opacity:1; }
+  .set-info{ padding:14px 16px 18px; }
+  .set-title{ font-size:13px; font-weight:600; margin-bottom:4px; }
+  .set-meta{ font-size:11px; color:rgba(255,255,255,.32); text-transform:uppercase; letter-spacing:.1em; }
+  @media (max-width:800px){ .sets-grid{ grid-template-columns:1fr; } }
+
+  /* ===== CONTACTO: entrada grande, rotada, de afuera ===== */
+  .contact{ display:grid; grid-template-columns:1fr 1fr; gap:70px; align-items:start; background:#1a1a1a; max-width:none; }
+  .contact-left > .reveal{ opacity:0; transform:translateX(-160px) rotate(-14deg) scale(.85);
+    transition:opacity 1.05s cubic-bezier(.22,1,.36,1), transform 1.05s cubic-bezier(.22,1,.36,1); }
+  .contact-left > .reveal.visible{ opacity:1; transform:none; }
+  .contact-left > .reveal:nth-child(2){ transition-delay:.1s; } .contact-left > .reveal:nth-child(3){ transition-delay:.2s; }
+  .contact-tagline{ font-size:16px; color:rgba(255,255,255,.52); line-height:1.7; margin:20px 0 40px; }
+  .contact-item{ display:flex; flex-direction:column; gap:4px; margin-bottom:20px; }
+  .contact-label{ font-size:10px; letter-spacing:.28em; text-transform:uppercase; color:var(--accent); }
+  .contact-value{ font-size:15px; color:rgba(255,255,255,.72); text-decoration:none; }
+  .contact-photo{ aspect-ratio:3/4; background:linear-gradient(150deg,#221a12,#050505); }
+  .contact-photo.reveal{ opacity:0; transform:translateX(220px) rotate(16deg) scale(1.3); transition:opacity 1.1s cubic-bezier(.22,1,.36,1), transform 1.1s cubic-bezier(.22,1,.36,1); transition-delay:.15s; }
+  .contact-photo.reveal.visible{ opacity:1; transform:none; }
+  @media (max-width:800px){ .contact{ grid-template-columns:1fr; } }
+
+  /* ===== STROBE FLASH ===== */
+  #strobeOverlay{ position:fixed; inset:0; background:#fff; opacity:0; pointer-events:none; z-index:9999; }
+  #strobeOverlay.flash{ animation:strobeFlash .7s steps(1,end) forwards; }
+  @keyframes strobeFlash{ 0%{opacity:0;} 4%{opacity:1;} 8%{opacity:0;} 13%{opacity:1;} 17%{opacity:0;} 24%{opacity:1;} 28%{opacity:0;} 37%{opacity:1;} 41%{opacity:0;} 52%{opacity:1;} 56%{opacity:0;} 70%{opacity:1;} 74%{opacity:0;} 100%{opacity:0;} }
+  .clickable-hint{ font-size:11px; color:rgba(255,255,255,.35); margin-top:8px; }
+
+  /* ===== LOADER ===== */
+  #pageLoader{ position:fixed; inset:0; z-index:99999; background:#000; display:flex; flex-direction:column; align-items:center; justify-content:center; transition:opacity .7s ease; }
+  #pageLoader.hidden{ opacity:0; pointer-events:none; }
+  .loader-name{ font-size:clamp(18px,4vw,36px); font-weight:800; letter-spacing:.22em; text-transform:uppercase; margin-bottom:24px; }
+  .loader-bar{ width:140px; height:1px; background:rgba(255,255,255,.12); overflow:hidden; }
+  .loader-fill{ height:100%; width:0; background:var(--accent); animation:loaderFill 1s ease forwards; }
+  @keyframes loaderFill{ to{ width:100%; } }
+
+  footer{ text-align:center; padding:30px; color:rgba(255,255,255,.3); font-size:11px; border-top:1px solid rgba(255,255,255,.06); }
+
+  /* ============================================================
+     RESPONSIVE GENERAL — tablet y mobile
+     ============================================================ */
+
+  /* Tablet: 801px – 1024px */
+  @media (max-width:1024px){
+    section{ padding:80px 32px; }
+    .sets-grid{ grid-template-columns:repeat(2,1fr); }
+    .eventos-grid{ grid-template-columns:repeat(4,1fr); }
+  }
+
+  /* Mobile grande / tablet chica: hasta 800px (además de lo ya definido arriba) */
+  @media (max-width:800px){
+    section{ padding:64px 24px; }
+    .hero{ padding:40px 24px; align-items:flex-end; }
+    .hero-top-row{ flex-direction:column; align-items:flex-start; gap:6px; }
+    .hero-location{ font-size:10px; }
+    .scroll-indicator{ right:24px; bottom:24px; }
+    .about-image{ aspect-ratio:4/5; }
+    .contact-photo{ margin-top:32px; }
+  }
+
+  /* Mobile: hasta 600px */
+  @media (max-width:600px){
+    section{ padding:56px 20px; }
+    .section-title{ font-size:clamp(30px,9vw,44px); }
+    .eventos-grid{ grid-template-columns:repeat(2,1fr); gap:10px; }
+    .gallery-grid{ columns:2; column-gap:8px; }
+    .sets-grid{ grid-template-columns:1fr; gap:14px; }
+    .about-title{ font-size:clamp(28px,8vw,40px); }
+    .about-text{ font-size:14px; }
+    .contact-tagline{ font-size:14px; }
+  }
+
+  /* Mobile chico: hasta 420px */
+  @media (max-width:420px){
+    .hero-title{ font-size:clamp(38px,13vw,56px); }
+    .eventos-grid{ grid-template-columns:repeat(2,1fr); gap:8px; }
+    .gallery-grid{ columns:1; }
+    section{ padding:48px 16px; }
+    nav{ padding:18px 16px; }
+  }
+
+  /* Ajuste táctil: sin hover real en touch, mostrar overlays/plays siempre visibles */
+  @media (hover:none){
+    .gallery-overlay{ opacity:1; background:linear-gradient(to top, rgba(0,0,0,.7), transparent 65%); }
+    .set-thumb .play{ opacity:.85; }
+  }
+</style>
+</head>
+<body>
+
+  <div id="pageLoader">
+    <p class="loader-name">Pepe</p>
+    <div class="loader-bar"><div class="loader-fill"></div></div>
+  </div>
+
+  <div id="strobeOverlay"></div>
+
+  <nav id="nav">
+    <div class="nav-logo-group">
+      <a href="#hero" class="nav-logo">Pepe</a>
+      <div class="lang-switcher">
+        <button class="lang-btn active" data-lang="es" onclick="setLang('es')">ES</button>
+        <button class="lang-btn" data-lang="en" onclick="setLang('en')">EN</button>
+      </div>
+    </div>
+    <ul class="nav-links" id="navLinks">
+      <li><a href="#about">Bio</a></li>
+      <li><a href="#eventos">Eventos</a></li>
+      <li><a href="#gallery">Galería</a></li>
+      <li><a href="#contact">Contacto</a></li>
+    </ul>
+    <button class="nav-burger" id="navBurger" aria-label="Abrir menú" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+  </nav>
+  <div class="nav-scrim" id="navScrim"></div>
+
+  <!-- HERO con scrub de video por scroll -->
+  <div class="hero-scroll-container" id="heroScrollContainer">
+    <section class="hero" id="hero">
+      <div class="hero-bg-fallback"></div>
+      <video class="hero-bg" id="heroVideo" muted playsinline preload="auto" src="video/hero.mp4"></video>
+      <div class="hero-overlay"></div>
+      <div class="hero-content">
+        <div class="hero-top-row">
+          <p class="hero-label" data-i18n="hero-label">VJ · Artista Visual</p>
+          <p class="hero-location">Buenos Aires</p>
+        </div>
+        <h1 class="hero-title">pepe</h1>
+      </div>
+      <div class="scroll-indicator"><div class="scroll-line"></div><span data-i18n="scroll">Scroll</span></div>
+    </section>
+  </div>
+
+  <!-- ABOUT -->
+  <section class="about" id="about">
+    <div class="about-image reveal"><img src="img/about.jpg" alt="Foto del artista" style="width:100%;height:100%;object-fit:cover;"></div>
+    <div class="about-copy">
+      <p class="section-label reveal" data-i18n="about-label">Experiencia Visual</p>
+      <h2 class="about-title reveal">Creando<br>Emociones<br>En Vivo</h2>
+      <p class="about-text reveal">Reemplazá este bloque con tu propia biografía. El texto entra con una inclinación (skew) que se endereza al llegar a su posición final.</p>
+    </div>
+  </section>
+
+  <!-- EVENTOS -->
+  <section id="eventos">
+    <p class="section-label reveal">Shows</p>
+    <h2 class="section-title reveal">Próximos Eventos</h2>
+    <div class="eventos-grid">
+  <div class="evento-flyer reveal"><img src="img/proximos-1.jpg" style="width:100%;height:100%;object-fit:cover;"></div>
+  <div class="evento-flyer reveal"><img src="img/proximos-2.jpg" style="width:100%;height:100%;object-fit:cover;"></div>
+  <div class="evento-flyer reveal"><img src="img/proximos-3.jpg" style="width:100%;height:100%;object-fit:cover;"></div>
+  <div class="evento-flyer reveal"><img src="img/proximos-4.jpg" style="width:100%;height:100%;object-fit:cover;"></div>
+  <div class="evento-flyer reveal"><img src="img/proximos-5.jpg" style="width:100%;height:100%;object-fit:cover;"></div>
+  <div class="evento-flyer reveal"><img src="img/proximos-6.jpg" style="width:100%;height:100%;object-fit:cover;"></div>
+</div>
+  </section>
+
+  <!-- GALERÍA MASONRY -->
+  <section id="gallery">
+    <p class="section-label reveal">Trabajos</p>
+    <h2 class="section-title reveal">Portfolio</h2>
+    <div class="gallery-grid" id="galleryGrid"></div>
+  </section>
+
+  <!-- SETS -->
+  <section id="sets">
+    <p class="section-label reveal">YouTube</p>
+    <h2 class="section-title reveal">Sets & Performances</h2>
+    <div class="sets-grid" id="setsGrid"></div>
+  </section>
+
+  <!-- CONTACTO -->
+  <section class="contact" id="contact">
+    <div class="contact-left">
+      <p class="section-label reveal">Contacto</p>
+      <h2 class="section-title reveal"><br></h2>
+      <p class="contact-tagline reveal">Abierto a nuevas colaboraciones.</p>
+      <div class="reveal">
+        <div class="contact-item"><span class="contact-label">Management</span><span class="contact-value">tu@email.com</span></div>
+        <div class="contact-item"><span class="contact-label">WhatsApp</span><span class="contact-value">+00 000 000 000</span></div>
+        <div class="contact-item"><span class="contact-label">Ubicación</span><span class="contact-value">Buenos Aires</span></div>
+      </div>
+    </div>
+    <div>
+      <div class="contact-photo reveal" id="contactPhoto"><img src="img/footer.jpg" style="width:100%;height:100%;object-fit:cover;"></div>
+      <p class="clickable-hint">↑ clickeá la foto para ver el efecto strobe</p>
+    </div>
+  </section>
+
+  <footer>Demo de estructura — reemplazá todo el contenido por el tuyo</footer>
+
+<script>
+  /* ============================================================
+     LOADER — espera a que TODO cargue (evento 'load', no
+     DOMContentLoaded) y agrega un pequeño delay artificial para
+     que el fade-out no se sienta instantáneo.
+     ============================================================ */
+  window.addEventListener('load', () => {
+    document.getElementById('hero').classList.add('loaded');
+    const loader = document.getElementById('pageLoader');
+    setTimeout(() => {
+      loader.classList.add('hidden');
+      setTimeout(() => loader.remove(), 750);
+    }, 300);
+  });
+
+  /* ============================================================
+     MENÚ HAMBURGUESA (mobile)
+     ============================================================ */
+  const navBurger = document.getElementById('navBurger');
+  const navLinksEl = document.getElementById('navLinks');
+  const navScrim = document.getElementById('navScrim');
+
+  function toggleMenu(open){
+    const isOpen = open !== undefined ? open : !navBurger.classList.contains('open');
+    navBurger.classList.toggle('open', isOpen);
+    navLinksEl.classList.toggle('open', isOpen);
+    navScrim.classList.toggle('open', isOpen);
+    navBurger.setAttribute('aria-expanded', isOpen);
+    document.body.style.overflow = isOpen ? 'hidden' : '';
+  }
+  navBurger.addEventListener('click', () => toggleMenu());
+  navScrim.addEventListener('click', () => toggleMenu(false));
+  navLinksEl.querySelectorAll('a').forEach(a => a.addEventListener('click', () => toggleMenu(false)));
+
+  /* ============================================================
+     SCRUB DE VIDEO POR SCROLL — mueve heroVideo.currentTime
+     según el progreso de scroll, en vez de reproducirlo normal.
+     ============================================================ */
+  const heroScrollContainer = document.getElementById('heroScrollContainer');
+  const nav = document.getElementById('nav');
+  const heroVideo = document.getElementById('heroVideo');
+
+  let videoReady = false;
+  heroVideo.addEventListener('loadedmetadata', () => { videoReady = true; });
+
+  function scrubVideo(){
+    const scrolled = Math.max(0, window.scrollY - heroScrollContainer.offsetTop);
+    const scrollable = heroScrollContainer.offsetHeight - window.innerHeight;
+    const progress = Math.min(Math.max(scrolled / scrollable, 0), 1);
+    // Movemos el video frame a frame según el scroll, en vez de dejarlo reproducirse solo
+    if (videoReady && !isNaN(heroVideo.duration)){
+      heroVideo.currentTime = heroVideo.duration * progress;
+    }
+    nav.classList.toggle('scrolled', window.scrollY > 60);
+  }
+  window.addEventListener('scroll', scrubVideo, { passive:true });
+
+  /* ============================================================
+     SCROLL REVEAL — un solo observer para TODAS las secciones;
+     lo que cambia el "estilo" de cada reveal es el CSS de cada
+     sección (ver arriba), no el JS.
+     ============================================================ */
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting){ e.target.classList.add('visible'); observer.unobserve(e.target); }
+    });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+  /* ============================================================
+     GENERAR GALERÍA — 12 fotos reales del portfolio
+     ============================================================ */
+  const galleryImages = [
+    'img/evento-1.jpg','img/evento-2.jpg','img/evento-3.jpg','img/evento-4.jpg',
+    'img/evento-5.jpg','img/evento-6.jpg','img/evento-7.jpg','img/evento-8.jpg',
+    'img/evento-9.jpg','img/evento-10.jpg','img/evento-11.jpg','img/evento-12.jpg',
+  ];
+  const galleryGrid = document.getElementById('galleryGrid');
+  galleryImages.forEach((src, i) => {
+    const item = document.createElement('div');
+    item.className = 'gallery-item reveal';
+    item.innerHTML = `<div class="fill" style="background-image:url('${src}');background-size:cover;background-position:center;"></div><div class="gallery-overlay">Trabajo ${i+1}</div>`;
+    galleryGrid.appendChild(item);
+    observer.observe(item);
+  });
+
+  /* ============================================================
+     GENERAR SETS (data-driven, igual que el original: un array
+     de objetos se transforma en tarjetas por JS)
+     ============================================================ */
+  const sets = [
+  { title:'David Guetta', year:'2026', id:'GSnPwle4FOE' },
+  { title:'Bizarrap Ultra', year:'2026', id:'0psLTNmJM38' },
+  { title:'Calvin Harris Ultra', year:'2024', id:'PxXAdY8G3G0' },
+];
+const setsGrid = document.getElementById('setsGrid');
+sets.forEach(s => {
+  const a = document.createElement('a');
+  a.href = `https://www.youtube.com/watch?v=${s.id}`;
+  a.target = '_blank';
+  a.className = 'set-card reveal';
+  a.innerHTML = `<div class="set-thumb" style="background-image:url('https://img.youtube.com/vi/${s.id}/hqdefault.jpg');background-size:cover;background-position:center;"><div class="play">▶</div></div>
+    <div class="set-info"><div class="set-title">${s.title}</div><div class="set-meta">${s.year} · YouTube</div></div>`;
+  setsGrid.appendChild(a);
+  observer.observe(a);
+});
+
+  /* ============================================================
+     STROBE FLASH — el reflow forzado (offsetWidth) es lo que
+     permite reiniciar la animación si clickeás rápido dos veces.
+     ============================================================ */
+  const strobeOverlay = document.getElementById('strobeOverlay');
+  function triggerStrobe(){
+    strobeOverlay.classList.remove('flash');
+    void strobeOverlay.offsetWidth; // fuerza reflow: "resetea" el estado de la animación
+    strobeOverlay.classList.add('flash');
+  }
+  strobeOverlay.addEventListener('animationend', () => strobeOverlay.classList.remove('flash'));
+  document.getElementById('contactPhoto').addEventListener('click', triggerStrobe);
+
+  /* ============================================================
+     SELECTOR DE IDIOMA
+     ============================================================ */
+  const T = {
+    es: { 'hero-label':'VJ · Artista Visual', 'scroll':'Scroll', 'about-label':'Experiencia Visual' },
+    en: { 'hero-label':'VJ · Visual Artist', 'scroll':'Scroll', 'about-label':'Visual Experience' }
+  };
+  function setLang(lang){
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const v = T[lang][el.dataset.i18n];
+      if (v !== undefined) el.textContent = v;
+    });
+    document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
+  }
+</script>
+</body>
+</html>
